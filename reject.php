@@ -473,7 +473,7 @@ else{
 		<?php } ?>
 		<p>
 			<a href="https://github.com/AyrA/ERSS" target="_blank" rel="noreferer noopener">Exit Relay Self Service</a> is free and open software,
-			<a href="https://github.com/AyrA/ERSS/LICENSE">licensed under the MIT</a>
+			<a href="https://github.com/AyrA/ERSS/blob/master/LICENSE">licensed under the MIT</a>
 		</p>
 	</body>
 </html>
