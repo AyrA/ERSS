@@ -13,6 +13,7 @@ It stops manual intervention by the relay operator for when people want their ad
 - Fully automatic management of the ExitPolicy configuration
 - Supports IPv6
 - Supports reCAPTCHA
+- Doesn't needs JavaScript if the captcha is not used
 - Doesn't needs any write access to your system
 - Doesn't needs a database
 - Doesn't needs session support
@@ -21,6 +22,7 @@ It stops manual intervention by the relay operator for when people want their ad
 - Only accepts block/unblock requests for IP address the request is made for
 - Stateless; there's no chance for it to be out of sync with your real ExitPolicy setting
 - Blocked ranges persist across Tor restarts (will update the actual configuration)
+- Without the captcha, works in most text based web browsers, which makes it suitable to be used from the command line
 
 ## Requirements
 
@@ -90,7 +92,6 @@ it will print an error message that contains the exact line
 so you can save it manually without compromising server security with write permissions.
 
 Just be sure that the webserver user has read access if you create the file using root/Administrator access.
-This is usually done by resetting the permissions/owner of the file to whatever it would have inherited if it were created by the www user.
 
 ### Manual Configuration
 
@@ -103,7 +104,7 @@ Create a JSON object with these keys:
 - **port** (number): The TCP port number of the ControlPort directive. Usually 9051
 - **password** (string): Password for the ControlPort. See "Custom Password" section below
 - **hmac** (string): This should be any long string of random characters. By default it's 32 random bytes as HEX encoded
-- **showlist** (bool): If enabled, the full black list (IP address entries only) is shown in the portal to everyone
+- **showlist** (bool): If enabled, the full list of IP addresses is shown in the portal to everyone
 - **captcha-private** (string): reCAPTCHA private key. Use `null` instead of a string to disable
 - **captcha-public** (string): reCAPTCHA public key. Use `null` instead of a string to disable
 
@@ -112,13 +113,13 @@ They look similar in the first half.
 
 Save the serialized JSON with the prefix `<?php //` as `config.php` (unless you changed the `CONFIG_FILE` constant).
 Be sure to serialize the JSON into a single line.
-If you did this properly, accessing config.php should just yield a blank page.
+If you did this properly, `config.php` is a single line with a PHP start tag and a commented JSON
 
 ### Custom Password
 
 You can use the `hashPassword` function in `include.php` to create the hash for Tor if you want to create the portal configuration manually.
 If you use the portal itself to make a configuration,
-you can see and example password and config file lines below the form.
+you can see an example password and config file lines below the form.
 You can use the provided randomly generated password or you can type your own and submit the form.
 After submitting the form, the password lines will be updated to show the hash for your currently chosen password.
 
@@ -128,3 +129,73 @@ The portal supports reCAPTCHA. Using it is optional.
 You can get a token from [Google](https://www.google.com/recaptcha) for free.
 Using reCAPTCHA means that the token form requires JavaScript to work.
 Otherwise this solution is completely free of dependencies.
+The reCAPTCHA framework is only loaded from google servers if you supply the keys for it.
+
+## About Tokens
+
+This portal creates tokens using a hmac function.
+The tokens allow it to function in a fully readonly environment.
+It doesn't requires any temporary files or session mechanism at all.
+
+The token is made up of the current system time, requested action and the IP address of the caller.
+
+When a request to block or unblock is made, the supplied token is validated against the IP address and the supplied values.
+This is done to prove a few things:
+
+- The token is for the IP that makes the current request
+- The supplied timestamp is still valid
+- The token is for the requested action
+
+If the token is validated successfully, the requested action is taken
+
+
+### Avoiding Abuse
+
+The requested token action is only taken if it makes sense to do it.
+It will not try to add duplicates or remove entries that are not there.
+
+Somebody might still try to send a massive number of add/remove requests to bog down your Tor client.
+
+Here are a few methods on how to avoid this:
+
+#### Global Lock
+
+This is simple, just open `reject.php` using `fopen()`, then `flock()` the file pointer (and don't forget to unlock at the end).
+This means your page will now only process one request at a time.
+This can be a bit dangerous if somebody sends a very slow request (see "Slow Loris Attack")
+
+#### IP Lock
+
+This is almost as simple as the global lock, but it requires write access somewhere on the server.
+The temp directory is fine for this.
+
+1. Calculate the sha1 hash of the client IP address
+2. Open `/tmp/$hash` for writing instead of `reject.php`, then proceed with the locking.
+3. Optionally, delete the file from the temp directory once you're done with it.
+
+You can unlink the file while it's open on Linux but not Windows.
+Be careful if you plan on unlinking the file while it's still open.
+
+#### Server Limits
+
+This file will not cause the browser to load a single resource from your server.
+This means that you can get away with limiting an IP address to a single connection
+if you don't relly use the web server for something else.
+
+#### Reduce token lifetime
+
+10 Minutes is a generous amount of time to connect to a server to make it issue a POST request.
+You can probably get away with a single minute. This means an IP needs to get a token 10 times as often.
+
+You can edit `reject.php` to provide a cURL command instead of text instructions.
+
+#### Captcha
+
+The captcha puts a dampener on automation.
+In your reCAPTCHA settings you can crank up the difficulty too if you want.
+Higher difficulty means that people are less likely to pass the captcha just with the checkbox.
+
+#### Tarpitting
+
+In combination with the locking,
+adding a 5 second delay before you take an action greatly reduces the number of requests a client can make.
