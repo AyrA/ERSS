@@ -76,6 +76,10 @@ It's recommended that you use this feature when running an exit relay.
 The Tor project provides an example file in their repository.
 You can use this file and replace/extend the contact section with a link to the self service portal.
 
+This repository provides a very simple `DirPortFrontPage.html` file for your convenience.
+Please edit the file and fill in the relay id and your public IP address or domain name
+where indicated by HTML comments.
+
 ### Optional Customization
 
 The file `include.php` can be customized by changing a few constants (usually not necessary):
